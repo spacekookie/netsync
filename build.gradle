@@ -1,11 +1,14 @@
-apply plugin: 'java'
-apply plugin: 'eclipse' 
+apply plugin: 'scala'
+apply plugin: 'eclipse'
 
+sourceSets.main.scala.srcDirs = ['src/']
+sourceSets.test.scala.srcDirs = ['test/']
 
 repositories {
   jcenter()
 }
 
 dependencies {
-  testCompile 'junit:junit:4.12'
+  // testCompile 'junit:junit:4.12'
+  compile group: 'com.esotericsoftware', name: 'kryonet', version: '2.22.0-RC1'
 }
