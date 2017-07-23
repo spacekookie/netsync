@@ -19,28 +19,38 @@ import java.io.IOException
 import com.esotericsoftware.minlog.Log
 
 /**
+ * A simple enum class that communicates error state
+ */
+object ClientCodes extends Enumeration {
+  type ClientCodes = Value
+
+  /** The connection went through successfully */
+  val STATUS_SUCCESS = Value
+
+  /** The server suddenly dropped the client */
+  val STATUS_ERROR_DROPPED = Value
+
+  /** The client failed to make a connection */
+  val STATUS_ERROR_CONNECT = Value
+
+  /** Connection failed because of a timeout  */
+  val STATUS_ERROR_TIMEOUT = Value
+
+  /** Connection failed permanently because "tries" was reached */
+  val STATUS_ERROR_PERMAFAIL = Value
+}
+
+/**
  * Creates a new network client for netsync. Provide a timeout time
  * and optionally a "tries" variable which will determine how many times
  * the client will try to establish a connection before permanently
- * failing and running the callback function with the apropriate error
+ * failing and running the callback function with the appropriate error
  * code.
  *
  * @param timeout The amount of time before calling a timeout
- * @param tries After how many times will the client give up? (Default: -1 infinately)
+ * @param tries After how many times will the client give up? (Default: -1 infinitely)
  */
 class NetClient(val timeout: Int, val tries: Int = -1) {
-
-  class ClientCodes extends Enumeration {
-
-    /** The client failed to make a connection */
-    val CLIENT_ERROR_CONNECT = Value
-
-    /** Connection failed because of a timeout  */
-    val CLIENT_ERROR_TIMEOUT = Value
-
-    /** Connection failed permanently because "tries" was reached */
-    val CLIENT_ERROR_PERMAFAIL = Value
-  }
 
   val client: Client = new Client()
   val cmdBuffer: Queue[() => Unit] = new Queue[() => Unit]()
@@ -48,6 +58,8 @@ class NetClient(val timeout: Int, val tries: Int = -1) {
 
   /** Disable the spammy Kryo log */
   Log.set(Log.LEVEL_NONE)
+
+  import ClientCodes._
 
   /** The NetClient runs asynchronously most of the time */
   new Thread(new Runnable {
@@ -93,16 +105,17 @@ class NetClient(val timeout: Int, val tries: Int = -1) {
    * @param port: The port the server listens to
    * @param callback: An optional callback function
    */
-  def connect(target: String, port: Int, callback: Option[Int => Unit]) = {
+  def connect(target: String, port: Int, callback: Option[ClientCodes => Unit]) = {
     this.synchronized {
       cmdBuffer.enqueue { () =>
 
-        var ret = 0
+        var ret: ClientCodes = STATUS_SUCCESS
+
         try {
           client.connect(5000, target, port, port)
         } catch {
-          case t: SocketTimeoutException => ret = 1
-          case t: IOException => ret = 2
+          case t: SocketTimeoutException => ret = STATUS_ERROR_TIMEOUT
+          case t: IOException => ret = STATUS_ERROR_CONNECT
         }
 
         /** Only execute callback if it exists */

@@ -1,5 +1,7 @@
 package de.spacekookie.netsync
 
+import de.spacekookie.netsync.ClientCodes._
+
 object Tester {
 
   def main(args: Array[String]) = {
@@ -10,7 +12,7 @@ object Tester {
     val client: NetClient = new NetClient(5000)
 
     /** Try to connect to a server */
-    client.connect("localhost", 3334, Option((x: Int) => {
+    client.connect("localhost", 3334, Option((x: ClientCodes) => {
       println("This function can do some error handling on the return value!")
       println(s"Connect return was $x")
     }))
