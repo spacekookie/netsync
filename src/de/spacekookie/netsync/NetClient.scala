@@ -51,6 +51,7 @@ object ClientCodes extends Enumeration {
  * @param tries After how many times will the client give up? (Default: -1 infinitely)
  */
 class NetClient(val timeout: Int, val tries: Int = -1) {
+  import ClientCodes._
 
   val client: Client = new Client()
   val cmdBuffer: Queue[() => Unit] = new Queue[() => Unit]()
@@ -58,8 +59,6 @@ class NetClient(val timeout: Int, val tries: Int = -1) {
 
   /** Disable the spammy Kryo log */
   Log.set(Log.LEVEL_NONE)
-
-  import ClientCodes._
 
   /** The NetClient runs asynchronously most of the time */
   new Thread(new Runnable {
@@ -109,6 +108,7 @@ class NetClient(val timeout: Int, val tries: Int = -1) {
     this.synchronized {
       cmdBuffer.enqueue { () =>
 
+        /** Always assume the best */
         var ret: ClientCodes = STATUS_SUCCESS
 
         try {
@@ -121,15 +121,15 @@ class NetClient(val timeout: Int, val tries: Int = -1) {
         /** Only execute callback if it exists */
         callback match {
 
-          /** This is an ugly hack because Java Threads don't know what functions are :) */
+          /** Run the provided callback on a non-blocking thread */
           case Some(callback) => new Thread(new Runnable {
             def run() {
               callback(ret)
             }
           }).start()
 
+          // TODO: We might internally consume the return value somehow?
           case none =>
-          /** Do absolutely nothing **/
         }
       }
 
