@@ -1,38 +1,85 @@
 package de.spacekookie.netsync
 
 import java.net.SocketTimeoutException
+import java.util.Date
 
 import scala.collection.mutable.Queue
 
+import com.esotericsoftware.kryo.Kryo
 import com.esotericsoftware.kryonet.Client
 
-class NetClient {
+import de.spacekookie.netsync.messages.CarrierMessage
+import de.spacekookie.netsync.messages.MessageType.Value
+import de.spacekookie.netsync.messages.MessageType
+import de.spacekookie.netsync.messages.PayloadType.Value
+import de.spacekookie.netsync.messages.PayloadType
+
+import scala.collection.mutable.HashMap
+import java.io.IOException
+import com.esotericsoftware.minlog.Log
+
+/**
+ * Creates a new network client for netsync. Provide a timeout time
+ * and optionally a "tries" variable which will determine how many times
+ * the client will try to establish a connection before permanently
+ * failing and running the callback function with the apropriate error
+ * code.
+ *
+ * @param timeout The amount of time before calling a timeout
+ * @param tries After how many times will the client give up? (Default: -1 infinately)
+ */
+class NetClient(val timeout: Int, val tries: Int = -1) {
+
+  class ClientCodes extends Enumeration {
+
+    /** The client failed to make a connection */
+    val CLIENT_ERROR_CONNECT = Value
+
+    /** Connection failed because of a timeout  */
+    val CLIENT_ERROR_TIMEOUT = Value
+
+    /** Connection failed permanently because "tries" was reached */
+    val CLIENT_ERROR_PERMAFAIL = Value
+  }
+
   val client: Client = new Client()
   val cmdBuffer: Queue[() => Unit] = new Queue[() => Unit]()
+  val self = this
 
-  /**
-   * Create a new netsync client that will run on a separate thread
-   * to keep registered objects in sync with a server. The target to
-   * sync object changes to needs to be provided via
-   *
-   */
-  def NetClient() {
+  /** Disable the spammy Kryo log */
+  Log.set(Log.LEVEL_NONE)
 
-    val self = this
+  /** The NetClient runs asynchronously most of the time */
+  new Thread(new Runnable {
+    def run() {
+      self.synchronized {
+        var running = true
 
-    /** The NetClient runs asynchronously most of the time */
-    new Thread(new Runnable {
-      def run() {
-        self.synchronized {
+        while (running) {
+
+          /** Wait until we are summoned */
+          println("Client is now waiting for commands...")
+          self.wait(timeout)
 
           /** Run all queued commands */
           for (cmd <- cmdBuffer)
             cmd()
-        }
-      }
-    }).start()
 
-  }
+          /** Clear the current command buffer */
+          cmdBuffer.clear()
+
+        }
+      } /* Synchronised */
+
+    }
+  }).start()
+
+  /** Register our own datatypes that are needed */
+  register(classOf[CarrierMessage])
+  register(classOf[MessageType.Value])
+  register(classOf[PayloadType.Value])
+  register(classOf[HashMap[_, _]])
+  register(classOf[Date])
 
   /**
    * Connect to a server target via an address and port provided. You
@@ -56,6 +103,7 @@ class NetClient {
           client.connect(5000, target, port, port)
         } catch {
           case t: SocketTimeoutException => ret = 1
+          case t: IOException => ret = 2
         }
 
         /** Only execute callback if it exists */
@@ -95,7 +143,8 @@ class NetClient {
    *
    * @param obj: An object you want to register
    */
-  def register(obj: Unit) = {
-
+  def register(clazz: Class[_]) = {
+    val kryo: Kryo = client.getKryo()
+    kryo.register(clazz)
   }
 }
