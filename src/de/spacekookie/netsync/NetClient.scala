@@ -58,7 +58,6 @@ class NetClient(val timeout: Int, val tries: Int = -1) {
         while (running) {
 
           /** Wait until we are summoned */
-          println("Client is now waiting for commands...")
           self.wait(timeout)
 
           /** Run all queued commands */
